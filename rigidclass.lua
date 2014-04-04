@@ -8,15 +8,7 @@ end
 -- credit to Demetri 
 -- http://www.freelists.org/post/luajit/Possible-to-store-a-reference-to-a-lua-table-in-an-ffi-struct,2
 local currentId = 0
-local tableToId = makeWeakTable('k')
 local idToTable = makeWeakTable('v')
-
-local function registerTable(tbl)
-    currentId = currentId + 1
-    tableToId[tbl] = currentId
-    idToTable[currentId] = tbl
-    return currentId
-end
 
 ffi.cdef[[typedef struct { int id; } tableref]]
 local tableref = ffi.metatype('tableref',
@@ -27,29 +19,37 @@ local tableref = ffi.metatype('tableref',
     __newindex = function (t, k, v)
         idToTable[t.id][k] = v
     end,
+    __pairs = function (t)
+        return pairs(idToTable[t.id])
+    end,
+    __ipairs = function (t)
+        return ipairs(idToTable[t.id])
+    end,
 })
 
-local t = tableref(1)
-local blah = t.n
-
-
+local function registerTable(tbl)
+    currentId = currentId + 1
+    idToTable[currentId] = tbl
+    return tableref(currentId)
+end
 
 local luaToCTypes =
 {
     number = 'double',
-    table = 'unsupported', --TODO
+    table = 'tableref', --TODO
+    cdata = 'tableref', --TODO
     string = 'unsupported', --TODO
-    boolean = 'bool'
-
+    unsupported = 'unsupported',
+    boolean = 'bool',
 }
 
-local function determineCTypes(object)
+local function setCTypes(types)
     local cTypes = {}
-    for k, v in pairs(object) do
-        local cType = luaToCTypes[type(v)]
+    for k, v in pairs(types) do
+        local cType = luaToCTypes[v]
         if cType ~= 'unsupported' then
             if cType == nil then
-                error('Lua type "'..type(v)..
+                error('Lua type "'..v..
                 '" is not supported by rigidclass.')
             end
             cTypes[k] = cType
@@ -58,39 +58,68 @@ local function determineCTypes(object)
     return cTypes
 end
 
+local function getTypes(object)
+    local types = {}
+    for k, v in pairs(object) do
+        if k == 'class' then
+            types[k] = 'unsupported'
+        else
+            types[k] = type(v)
+        end
+    end
+    return types
+end
+
 local function buildDefString(cTypes, name)
     local s = 'typedef struct { '
     for k, v in pairs(cTypes) do
         s = s..v..' '..k..'; '
     end
     s = s..'} '..name..';'
+    print(s)
     return s
 end
 
-local function define(name, dummyObject)
-    ffi.cdef(buildDefString(determineCTypes(dummyObject), name))
+local function define(name, types)
+    ffi.cdef(buildDefString(setCTypes(types), name))
 end
 
-
 local function allocate(self)
-  assert(type(self) == 'table', "Make sure that you are using 'Class:allocate' instead of 'Class.allocate'")
-  return ffi.new(self.name)
+    assert(type(self) == 'table', "Make sure that you are using 'Class:allocate' instead of 'Class.allocate'")
+    return ffi.new(self.name)
 end
 
 local function new(self, ...)
-  local instance = self:allocate()
-  instance:initialize(...)
-  return instance
+    local instance = self:allocate()
+    instance:initialize(...)
+    return instance
 end
 
-return function(class)
+local function create(class, types)
     assert(type(class) == 'table')
     assert(type(class.name) == 'string')
-    local dummyObject = class:new()
-    define(class.name, dummyObject)
-    local mt = getmetatable(dummyObject)
+    assert(type(types) == 'table')
+    define(class.name, types)
+    local mt = class.__instanceDict
     mt.__index.new = new
     mt.__index.allocate = allocate
     ffi.metatype(class.name, mt)
     return class
 end
+
+local function toRigid(class)
+    assert(type(class) == 'table')
+    local dummyObject = class:new()
+    return create(class, getTypes(dummyObject))
+end
+
+return setmetatable(
+{
+    registerTable = registerTable,
+    toRigid = toRigid
+},
+{
+    __call = function(_, class, typeAnnotations)
+        return create(class, typeAnnotations)
+    end
+})

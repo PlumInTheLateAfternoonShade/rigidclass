@@ -10,7 +10,7 @@ function Pixel:initialize(red, green, blue, alpha)
     self.alpha = alpha or 0
 end
 
-local RigidPixel = rigidclass(Pixel)
+local RigidPixel = rigidclass.toRigid(Pixel)
 
 local floor = math.floor
 
