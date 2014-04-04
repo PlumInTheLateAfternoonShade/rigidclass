@@ -1,44 +1,28 @@
-local class = require 'middleclass'
-local rigidclass = require 'rigidclass'
+local Pixel = require 'rigidclass' ({ red = 'uint8_t', green = 'uint8_t',
+  blue = 'uint8_t', alpha = 'uint8_t', }, 'Pixel')
 
-local Pixel = rigidclass(
-{
-    red = 'uint8_t',
-    green = 'uint8_t',
-    blue = 'uint8_t',
-    alpha = 'uint8_t',
-}, 'Pixel')
-
-function Pixel:initialize(red, green, blue, alpha)
-    self.red = red or 0
-    self.green = green or 0
-    self.blue = blue or 0
-    self.alpha = alpha or 0
+function Pixel:image_to_grey()
+    local y = 0.3*self.red + 0.59*self.green + 0.11*self.blue
+    self.red = y; self.green = y; self.blue = y
 end
-
-local floor = math.floor
 
 local function image_ramp_green(n)
     local img = Pixel:array(n)
     local f = 255/(n-1)
-    for i = 1, n do
-        img[i] = Pixel:new(0, i*f, 0, 255)
+    for i = 0, n - 1 do
+        img[i].green = i*f
+        img[i].alpha = 255
     end
     return img
-end
-
-local function image_to_grey(img, n)
-    for i = 1, n do
-        local y = 0.3*img[i].red + 0.59*img[i].green + 0.11*img[i].blue
-        img[i].red = y; img[i].green = y; img[i].blue = y
-    end
 end
 
 local N = 400*400
 local img = image_ramp_green(N)
 local startTime = os.clock()
-for i=1,1000 do
-    image_to_grey(img, N)
+for i = 1, 1000 do
+    for j = 0, N - 1 do
+        img[j]:image_to_grey()
+    end
 end
 local endTime = os.clock()
 print("rigidclass", endTime - startTime)
