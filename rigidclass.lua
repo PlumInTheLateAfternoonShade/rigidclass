@@ -1,4 +1,5 @@
 local ffi = require("ffi")
+local middle = require 'middleclass'
 
 local function makeWeakTable(mode)
     return setmetatable({}, { __mode = mode })
@@ -36,11 +37,11 @@ end
 local luaToCTypes =
 {
     number = 'double',
-    table = 'tableref', --TODO
-    cdata = 'tableref', --TODO
+    table = 'tableref',
     string = 'unsupported', --TODO
     unsupported = 'unsupported',
     boolean = 'bool',
+    bool = 'bool',
 }
 
 local function setCTypes(types)
@@ -95,14 +96,42 @@ local function new(self, ...)
     return instance
 end
 
+local function __tostring(self)
+    return "instance of " .. tostring(self.getClass())
+end
+
+local function isInstanceOf(self, aClass)
+    local class = self.getClass()
+    return (type(self) == 'table' or type(self) == 'cdata') and
+    type(class) == 'table' and
+    type(aClass) == 'table' and
+    ( aClass == class or
+    type(aClass.isSubclassOf) == 'function' and
+    class:isSubclassOf(aClass)
+    )
+end
+
 local function create(class, types)
     assert(type(class) == 'table')
     assert(type(class.name) == 'string')
     assert(type(types) == 'table')
-    define(class.name, types)
+    class.__types = {}
+    if class.super and class.super.__types then
+        for name, typ in pairs(class.super.__types) do
+            class.__types[name] = typ
+        end
+    end
+    for name, typ in pairs(types) do
+        class.__types[name] = typ
+    end
+    define(class.name, class.__types)
+    class.__types = types
     local mt = class.__instanceDict
     mt.__index.new = new
     mt.__index.allocate = allocate
+    mt.__index.getClass = function () return class end
+    mt.__index.isInstanceOf = isInstanceOf
+    mt.__tostring = __tostring
     ffi.metatype(class.name, mt)
     return class
 end
@@ -116,10 +145,12 @@ end
 return setmetatable(
 {
     registerTable = registerTable,
-    toRigid = toRigid
+    toRigid = toRigid,
+    middle = middle,
 },
 {
-    __call = function(_, class, typeAnnotations)
+    __call = function(_, typeAnnotations, name, ...) --TODO
+        local class = middle(name, ...)
         return create(class, typeAnnotations)
     end
 })

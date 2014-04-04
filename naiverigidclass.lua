@@ -1,4 +1,4 @@
-local class = require 'middleclass.middleclass'
+local class = require 'middleclass'
 local rigidclass = require 'rigidclass'
 
 local Pixel = class('Pixel')
