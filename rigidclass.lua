@@ -42,6 +42,7 @@ local luaToCTypes =
     unsupported = 'unsupported',
     boolean = 'bool',
     bool = 'bool',
+    uint8_t = 'uint8_t'
 }
 
 local function setCTypes(types)
@@ -85,6 +86,10 @@ local function define(name, types)
     ffi.cdef(buildDefString(setCTypes(types), name))
 end
 
+local function array(self, n)
+    return ffi.new(self.getClass().__arrayName, n)
+end
+
 local function allocate(self)
     assert(type(self) == 'table', "Make sure that you are using 'Class:allocate' instead of 'Class.allocate'")
     return ffi.new(self.name)
@@ -125,12 +130,14 @@ local function create(class, types)
         class.__types[name] = typ
     end
     define(class.name, class.__types)
+    class.__arrayName = class.name..'[?]'
     class.__types = types
     local mt = class.__instanceDict
     mt.__index.new = new
     mt.__index.allocate = allocate
     mt.__index.getClass = function () return class end
     mt.__index.isInstanceOf = isInstanceOf
+    mt.__index.array = array
     mt.__tostring = __tostring
     ffi.metatype(class.name, mt)
     return class
