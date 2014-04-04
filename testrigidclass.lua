@@ -12,8 +12,7 @@ function Fruit:initialize(sweetness, color, edible, subtable)
     self.sweetness = sweetness or 0
     --self.color = color or ''
     self.edible = edible or false
-    self.subtable = rigidclass.registerTable(
-        subtable or { name = 'carol' })
+    self:setSubtable(subtable or { name = 'carol' })
 end
 
 Fruit.static.sweetness_threshold = 5 -- class variable (also admits methods)
@@ -38,10 +37,11 @@ lemon.subtable.name = 'frederick'
 lemon.subtable.num = 5
 assert(lemon.subtable.name == 'frederick')
 assert(lemon.subtable.num == 5)
+assert(lemon['subtable'].num == 5)
 for k, v in pairs(lemon.getClass()) do
     print(k, v)
 end
-print(lemon.getClass().static.sweetness_threshold)
+assert(lemon.getClass().static.sweetness_threshold == 5)
 print(tostring(lemon))
-print(lemon:isInstanceOf(Lemon))
-print(lemon.getClass():isSubclassOf(Fruit))
+assert(lemon:isInstanceOf(Lemon))
+assert(lemon.getClass():isSubclassOf(Fruit))

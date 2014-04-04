@@ -45,7 +45,8 @@ local luaToCTypes =
     uint8_t = 'uint8_t'
 }
 
-local function setCTypes(types)
+local function setCTypes(types, mt)
+    local setTableMethodCreated = false
     local cTypes = {}
     for k, v in pairs(types) do
         local cType = luaToCTypes[v]
@@ -53,6 +54,18 @@ local function setCTypes(types)
             if cType == nil then
                 error('Lua type "'..v..
                 '" is not supported by rigidclass.')
+            elseif cType == 'tableref' then
+                local firstLetter = k:sub(0, 1):upper()
+                local camel = 'set'..firstLetter..k:sub(2)
+                mt.__index[camel] = function (self, newTable)
+                    self[k] = registerTable(newTable)
+                end
+                if not setTableMethodCreated then
+                    mt.__index.setTable = function (self, k, newTable)
+                        self[k] = registerTable(newTable)
+                    end
+                    setTableMethodCreated = true
+                end
             end
             cTypes[k] = cType
         end
@@ -82,8 +95,8 @@ local function buildDefString(cTypes, name)
     return s
 end
 
-local function define(name, types)
-    ffi.cdef(buildDefString(setCTypes(types), name))
+local function define(name, types, mt)
+    ffi.cdef(buildDefString(setCTypes(types, mt), name))
 end
 
 local function array(self, n)
@@ -129,10 +142,10 @@ local function create(class, types)
     for name, typ in pairs(types) do
         class.__types[name] = typ
     end
-    define(class.name, class.__types)
+    local mt = class.__instanceDict
+    define(class.name, class.__types, mt)
     class.__arrayName = class.name..'[?]'
     class.__types = types
-    local mt = class.__instanceDict
     mt.__index.new = new
     mt.__index.allocate = allocate
     mt.__index.getClass = function () return class end
@@ -156,7 +169,7 @@ return setmetatable(
     middle = middle,
 },
 {
-    __call = function(_, typeAnnotations, name, ...) --TODO
+    __call = function(_, typeAnnotations, name, ...)
         local class = middle(name, ...)
         return create(class, typeAnnotations)
     end
