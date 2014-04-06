@@ -10,6 +10,7 @@ end
 -- http://www.freelists.org/post/luajit/Possible-to-store-a-reference-to-a-lua-table-in-an-ffi-struct,2
 local currentId = 0
 local idToTable = makeWeakTable('v')
+local tableToId = makeWeakTable('k')
 
 ffi.cdef[[typedef int tableref]]
 
@@ -75,9 +76,14 @@ local function setCTypes(types, mt, class)
                     return idToTable[tbl[adjK]]
                 end
                 newIndexer[k] = function(tbl, key, val)
-                    currentId = currentId + 1
-                    idToTable[currentId] = val
-                    tbl[adjK] = currentId
+                    if tableToId[val] then
+                        tbl[adjK] = tableToId[val]
+                    else
+                        currentId = currentId + 1
+                        idToTable[currentId] = val
+                        tableToId[val] = currentId
+                        tbl[adjK] = currentId
+                    end
                 end
             elseif cType == 'uint8_t*' then
                 adjK = getUniqueIdentifier(k)
