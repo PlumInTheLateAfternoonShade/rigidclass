@@ -29,13 +29,16 @@ function Lemon:initialize(sweetness, color, edible, subtable)
 end
 
 function Lemon:lemonFunc()
-
+    return true
 end
 
 local lemon = Lemon:new(0, 'yellow', true, { name = 'bob' })
-
-assert(not lemon:isSweet()) -- false
-assert(lemon.edible) -- true
+assert(lemon:lemonFunc())
+for k, v in pairs(lemon.getClass().__instanceDict) do
+    print(k, v)
+end
+assert(not lemon:isSweet())
+assert(lemon.edible)
 assert(lemon.subtable.name == 'bob')
 lemon.subtable.name = 'frederick'
 lemon.subtable.num = 5

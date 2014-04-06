@@ -1,5 +1,5 @@
 local ffi = require("ffi")
-local middle = require 'middleclass'
+local middle = require 'rmiddleclass'
 
 local function makeWeakTable(mode)
     return setmetatable({}, { __mode = mode })
@@ -181,21 +181,44 @@ local function isInstanceOf(self, aClass)
     )
 end
 
+local function copyMeta(mt, super)
+    -- We need a second metatable in order to define custom accessors
+    -- for attributes of the class.
+    if not super then
+        return
+    end
+    local superMt = super.__instanceDict
+    for k, v in pairs(superMt) do
+        if not rawget(mt, k) then
+            mt[k] = v
+        end
+    end
+    return copyMeta(mt, super.super)
+end
+
 local function create(class, types)
     assert(type(class) == 'table')
     assert(type(class.name) == 'string')
     assert(type(types) == 'table')
     assignTypes(class, types)
     local mt = class.__instanceDict
+    copyMeta(mt, class.super)
+    setmetatable(mt,
+    { 
+        __index = function (t, k)
+            if k == 'class' then
+                return class
+            end
+        end,
+    })
+    mt.__tostring = __tostring
     define(class.name, class.__types, mt)
     class.__arrayName = class.name..'[?]'
-    mt.__index.new = new
-    mt.__index.allocate = allocate
-    mt.__index.getClass = function () return class end
---    mt.__index.__index = { class = '5' }
-    mt.__index.isInstanceOf = isInstanceOf
-    mt.__index.array = array
-    mt.__tostring = __tostring
+    mt.new = new
+    mt.allocate = allocate
+    mt.getClass = function () return class end
+    mt.isInstanceOf = isInstanceOf
+    mt.array = array
     ffi.metatype(class.name, mt)
     return class
 end
