@@ -1,5 +1,5 @@
-local Pixel = require 'rigidclass' ({ red = 'uint8_t', green = 'uint8_t',
-  blue = 'uint8_t', alpha = 'uint8_t', }, 'Pixel')
+local Pixel = require 'rigidclass' (
+{ uint8_t = { 'red', 'green', 'blue', 'alpha' } }, 'Pixel')
 
 function Pixel:image_to_grey()
     local y = 0.3*self.red + 0.59*self.green + 0.11*self.blue

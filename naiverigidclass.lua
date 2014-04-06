@@ -2,12 +2,7 @@ local rigidclass = require 'rigidclass'
 local floor = math.floor
 
 local Pixel = rigidclass(
-{
-    red = 'number',
-    green = 'number',
-    blue = 'number',
-    alpha = 'number',
-}, 'Pixel')
+{ number = { 'red', 'green', 'blue', 'alpha'} }, 'Pixel')
 
 function Pixel:initialize(red, green, blue, alpha)
     self.red = red or 0

@@ -26,6 +26,9 @@ local tableref = ffi.metatype('tableref',
     __ipairs = function (t)
         return ipairs(idToTable[t.id])
     end,
+    __len = function(t)
+        return #idToTable[t.id]
+    end
 })
 
 local function registerTable(tbl)
@@ -43,10 +46,46 @@ local luaToCTypes =
     boolean = 'bool',
     bool = 'bool',
     uint8_t = 'uint8_t'
+    
+    --nil, boolean, number, string, function, userdata, thread, and table
 }
 
+
+local function setTable(self, key, newTable)
+    self[key] = registerTable(newTable)
+end
+
+local function getTable(self, key)
+    return idToTable[self[key].id]
+end
+
+local function assignTypes(class, types)
+    class.__types = {}
+    if class.super and class.super.__types then
+        for name, typ in pairs(class.super.__types) do
+            class.__types[name] = typ
+        end
+    end
+    for typ, names in pairs(types) do
+        if type(names) == 'string' then
+            class.__types[names] = typ
+        elseif type(names) == 'table' then
+            for i = 1, #names do
+                class.__types[names[i]] = typ
+            end
+        else
+            error([[rigidclass type annotations table can only accept
+            strings and tables as values.]])
+        end
+    end
+end
+
+local function sortByDecreasingAlignment(a, b)
+    return a[3] > b[3]
+end
+
 local function setCTypes(types, mt)
-    local setTableMethodCreated = false
+    local tableMethodsCreated = false
     local cTypes = {}
     for k, v in pairs(types) do
         local cType = luaToCTypes[v]
@@ -56,20 +95,33 @@ local function setCTypes(types, mt)
                 '" is not supported by rigidclass.')
             elseif cType == 'tableref' then
                 local firstLetter = k:sub(0, 1):upper()
-                local camel = 'set'..firstLetter..k:sub(2)
-                mt.__index[camel] = function (self, newTable)
+                local camel = firstLetter..k:sub(2)
+                mt.__index['set'..camel] = function (self, newTable)
                     self[k] = registerTable(newTable)
                 end
-                if not setTableMethodCreated then
-                    mt.__index.setTable = function (self, k, newTable)
-                        self[k] = registerTable(newTable)
-                    end
-                    setTableMethodCreated = true
+                mt.__index['get'..camel] = function (self)
+                    return idToTable[self[k].id]
+                end
+                if not tableMethodsCreated then
+                    mt.__index.setTable = setTable
+                    mt.__index.getTable = getTable
+                    tableMethodsCreated = true
                 end
             end
-            cTypes[k] = cType
+            
+            table.insert(cTypes,
+            {
+                cType, k,
+                -- Determines the required alignment for the type
+                -- in order to pack the parent struct to minimize
+                -- wasted space in the struct. It's unnecessary to
+                -- call this for every type, but fairly fast so we
+                -- don't care.
+                ffi.alignof(ffi.new(cType))
+            })
         end
     end
+    table.sort(cTypes, sortByDecreasingAlignment)
     return cTypes
 end
 
@@ -87,8 +139,8 @@ end
 
 local function buildDefString(cTypes, name)
     local s = 'typedef struct { '
-    for k, v in pairs(cTypes) do
-        s = s..v..' '..k..'; '
+    for i = 1, #cTypes do
+        s = s..cTypes[i][1]..' '..cTypes[i][2]..'; '
     end
     s = s..'} '..name..';'
     print(s)
@@ -133,22 +185,14 @@ local function create(class, types)
     assert(type(class) == 'table')
     assert(type(class.name) == 'string')
     assert(type(types) == 'table')
-    class.__types = {}
-    if class.super and class.super.__types then
-        for name, typ in pairs(class.super.__types) do
-            class.__types[name] = typ
-        end
-    end
-    for name, typ in pairs(types) do
-        class.__types[name] = typ
-    end
+    assignTypes(class, types)
     local mt = class.__instanceDict
     define(class.name, class.__types, mt)
     class.__arrayName = class.name..'[?]'
-    class.__types = types
     mt.__index.new = new
     mt.__index.allocate = allocate
     mt.__index.getClass = function () return class end
+--    mt.__index.__index = { class = '5' }
     mt.__index.isInstanceOf = isInstanceOf
     mt.__index.array = array
     mt.__tostring = __tostring
@@ -164,7 +208,6 @@ end
 
 return setmetatable(
 {
-    registerTable = registerTable,
     toRigid = toRigid,
     middle = middle,
 },
