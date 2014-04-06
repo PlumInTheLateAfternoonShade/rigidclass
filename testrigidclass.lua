@@ -4,7 +4,7 @@ local Fruit = rigidclass(
 {
     number = 'sweetness',
     boolean = 'edible',
-    table = 'nsubtable',
+    table = 'subtable',
 }, 'Fruit') -- 'Fruit' is the class' name
 
 function Fruit:initialize(sweetness, color, edible, subtable)

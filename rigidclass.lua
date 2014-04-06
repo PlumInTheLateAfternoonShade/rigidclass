@@ -11,31 +11,7 @@ end
 local currentId = 0
 local idToTable = makeWeakTable('v')
 
-ffi.cdef[[typedef struct { int id; } tableref]]
-local tableref = ffi.metatype('tableref',
-{
-    __index = function (t, k)
-        return idToTable[t.id][k]
-    end,
-    __newindex = function (t, k, v)
-        idToTable[t.id][k] = v
-    end,
-    __pairs = function (t)
-        return pairs(idToTable[t.id])
-    end,
-    __ipairs = function (t)
-        return ipairs(idToTable[t.id])
-    end,
-    __len = function(t)
-        return #idToTable[t.id]
-    end
-})
-
-local function registerTable(tbl)
-    currentId = currentId + 1
-    idToTable[currentId] = tbl
-    return tableref(currentId)
-end
+ffi.cdef[[typedef int tableref]]
 
 local luaToCTypes =
 {
@@ -49,15 +25,6 @@ local luaToCTypes =
     
     --nil, boolean, number, string, function, userdata, thread, and table
 }
-
-
-local function setTable(self, key, newTable)
-    self[key] = registerTable(newTable)
-end
-
-local function getTable(self, key)
-    return idToTable[self[key].id]
-end
 
 local function assignTypes(class, types)
     class.__types = {}
@@ -85,6 +52,7 @@ local function sortByDecreasingAlignment(a, b)
 end
 
 local indexer, newIndexer
+local uniqueId = 0
 
 local function setCTypes(types, mt, class)
     local tableMethodsCreated = false
@@ -94,36 +62,26 @@ local function setCTypes(types, mt, class)
     for k, v in pairs(types) do
         local cType = luaToCTypes[v]
         if cType ~= 'unsupported' then
+            local adjK = k
             if cType == nil then
                 error('Lua type "'..v..
                 '" is not supported by rigidclass.')
             elseif cType == 'tableref' then
-                indexer['subtable'] = function(t, k)
-                    return idToTable[t.nsubtable.id]
+                uniqueId = uniqueId + 1
+                adjK = k..uniqueId
+                indexer[k] = function(tbl, key)
+                    return idToTable[tbl[adjK]]
                 end
-                newIndexer['subtable'] = function(t, k, v)
+                newIndexer[k] = function(tbl, key, val)
                     currentId = currentId + 1
-                    idToTable[currentId] = v
-                    t.nsubtable.id = currentId
+                    idToTable[currentId] = val
+                    tbl[adjK] = currentId
                 end
-                --[[local firstLetter = k:sub(0, 1):upper()
-                local camel = firstLetter..k:sub(2)
-                mt.__index['set'..camel] = function (self, newTable)
-                    self[k] = registerTable(newTable)
-                end
-                mt.__index['get'..camel] = function (self)
-                    return idToTable[self[k].id]
-                end
-                if not tableMethodsCreated then
-                    mt.__index.setTable = setTable
-                    mt.__index.getTable = getTable
-                    tableMethodsCreated = true
-                end]]--
             end
             
             table.insert(cTypes,
             {
-                cType, k,
+                cType, adjK,
                 -- Determines the required alignment for the type
                 -- in order to pack the parent struct to minimize
                 -- wasted space in the struct. It's unnecessary to
