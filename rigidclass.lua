@@ -85,7 +85,9 @@ local function setCTypes(types, mt, class)
                     return ffi.string(tbl[adjK])
                 end
                 newIndexer[k] = function(tbl, key, val)
-                    ffi.copy(tbl[adjK], val)
+                    local cstring = ffi.new('uint8_t[?]', #val + 1)
+                    ffi.copy(cstring, val)
+                    tbl[adjK] = cstring
                 end
             end
             
@@ -196,12 +198,7 @@ local function create(class, types)
     mt.isInstanceOf = isInstanceOf
     mt.array = array
     mt.__newindex = function (t, k, v)
-            print('got outer newindexer here with '..k)
-            for k, v in pairs(newIndexer) do
-                print(k, v)
-            end
             if newIndexer[k] then
-                print('got here with '..k)
                 return newIndexer[k](t, k, v)
             else
                 rawset(t, k, v)
@@ -210,12 +207,7 @@ local function create(class, types)
     setmetatable(mt,
     {
         __index = function (t, k)
-            print('got outer indexer here with '..k)
-            for k, v in pairs(indexer) do
-                print(k, v)
-            end
             if indexer[k] then
-                print('got here with '..k)
                 return indexer[k](t, k)
             elseif k == 'class' then
                 return class
@@ -224,9 +216,6 @@ local function create(class, types)
             end
         end,
     })
-    for k, v in pairs(mt) do
-        print(k, v)
-    end
     ffi.metatype(class.name, mt)
     return class
 end

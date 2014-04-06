@@ -34,12 +34,18 @@ function Lemon:lemonFunc()
 end
 
 local lemon = Lemon:new(0, 'yellow', true, { name = 'bob' })
+
+-- methods
 assert(lemon:lemonFunc())
-for k, v in pairs(lemon.getClass().__instanceDict) do
-    print(k, v)
-end
 assert(not lemon:isSweet())
+-- booleans
 assert(lemon.edible)
+-- strings
+assert(lemon.color == 'yellow')
+lemon.color = lemon.color..'ish'
+assert(lemon.color == 'yellowish')
+
+-- subtables
 assert(lemon.subtable.name == 'bob')
 lemon.subtable.name = 'frederick'
 lemon.subtable.num = 5
@@ -53,14 +59,6 @@ assert(#lemon.subtable == 0)
 table.insert(lemon.subtable, 2)
 assert(#lemon.subtable == 1)
 assert(lemon['subtable'].num == 5)
-print('class members')
-for k, v in pairs(lemon.getClass()) do
-    print(k, v)
-end
-print('instancedict members')
-for k, v in pairs(lemon.getClass().__instanceDict) do
-    print(k, v)
-end
 assert(lemon.getClass().static.sweetness_threshold == 5)
 print(tostring(lemon))
 assert(lemon:isInstanceOf(Lemon))
