@@ -131,7 +131,7 @@ local function buildDefString(cTypes, name)
         s = s..cTypes[i][1]..' '..cTypes[i][2]..'; '
     end
     s = s..'} '..name..';'
-    print(s)
+    --print(s)
     return s
 end
 
@@ -146,6 +146,12 @@ end
 local function allocate(self)
     assert(type(self) == 'table', "Make sure that you are using 'Class:allocate' instead of 'Class.allocate'")
     return ffi.new(self.name)
+    --[[if self.__cachedType then
+        return self.__cachedType()
+    else
+        self.__cachedType = ffi.typeof(ffi.new(self.name))
+        return self.__cachedType()
+    end]]--
 end
 
 local function new(self, ...)
