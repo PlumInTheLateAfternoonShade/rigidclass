@@ -1,5 +1,5 @@
 local ffi = require("ffi")
-local middle = require 'rmiddleclass'
+local middle = require 'middleclass'
 
 local function makeWeakTable(mode)
     return setmetatable({}, { __mode = mode })
@@ -84,8 +84,12 @@ local function sortByDecreasingAlignment(a, b)
     return a[3] > b[3]
 end
 
-local function setCTypes(types, mt)
+local indexer, newIndexer
+
+local function setCTypes(types, mt, class)
     local tableMethodsCreated = false
+    indexer = {}
+    newIndexer = {}
     local cTypes = {}
     for k, v in pairs(types) do
         local cType = luaToCTypes[v]
@@ -94,7 +98,15 @@ local function setCTypes(types, mt)
                 error('Lua type "'..v..
                 '" is not supported by rigidclass.')
             elseif cType == 'tableref' then
-                local firstLetter = k:sub(0, 1):upper()
+                indexer['subtable'] = function(t, k)
+                    return idToTable[t.nsubtable.id]
+                end
+                newIndexer['subtable'] = function(t, k, v)
+                    currentId = currentId + 1
+                    idToTable[currentId] = v
+                    t.nsubtable.id = currentId
+                end
+                --[[local firstLetter = k:sub(0, 1):upper()
                 local camel = firstLetter..k:sub(2)
                 mt.__index['set'..camel] = function (self, newTable)
                     self[k] = registerTable(newTable)
@@ -106,7 +118,7 @@ local function setCTypes(types, mt)
                     mt.__index.setTable = setTable
                     mt.__index.getTable = getTable
                     tableMethodsCreated = true
-                end
+                end]]--
             end
             
             table.insert(cTypes,
@@ -147,8 +159,8 @@ local function buildDefString(cTypes, name)
     return s
 end
 
-local function define(name, types, mt)
-    ffi.cdef(buildDefString(setCTypes(types, mt), name))
+local function define(name, types, mt, class)
+    ffi.cdef(buildDefString(setCTypes(types, mt, class), name))
 end
 
 local function array(self, n)
@@ -182,8 +194,12 @@ local function isInstanceOf(self, aClass)
 end
 
 local function copyMeta(mt, super)
-    -- We need a second metatable in order to define custom accessors
-    -- for attributes of the class.
+    -- We need a function __index to handle getting and setting of
+    -- certain Lua types, but for inheritance we need the table __index.
+    -- Instead of editing the metatable of the
+    -- superclass, we copy methods into this class' metatable instead.
+    -- This bloats the size of class metatables, but since there's only
+    -- one per class, not one per instance, it's not a huge deal.
     if not super then
         return
     end
@@ -203,22 +219,46 @@ local function create(class, types)
     assignTypes(class, types)
     local mt = class.__instanceDict
     copyMeta(mt, class.super)
-    setmetatable(mt,
-    { 
-        __index = function (t, k)
-            if k == 'class' then
-                return class
-            end
-        end,
-    })
     mt.__tostring = __tostring
-    define(class.name, class.__types, mt)
+    define(class.name, class.__types, mt, class)
     class.__arrayName = class.name..'[?]'
     mt.new = new
     mt.allocate = allocate
     mt.getClass = function () return class end
     mt.isInstanceOf = isInstanceOf
     mt.array = array
+    mt.__newindex = function (t, k, v)
+            print('got outer newindexer here with '..k)
+            for k, v in pairs(newIndexer) do
+                print(k, v)
+            end
+            if newIndexer[k] then
+                print('got here with '..k)
+                return newIndexer[k](t, k, v)
+            else
+                rawset(t, k, v)
+            end
+        end
+    setmetatable(mt,
+    {
+        __index = function (t, k)
+            print('got outer indexer here with '..k)
+            for k, v in pairs(indexer) do
+                print(k, v)
+            end
+            if indexer[k] then
+                print('got here with '..k)
+                return indexer[k](t, k)
+            elseif k == 'class' then
+                return class
+            else
+                rawget(t, k)
+            end
+        end,
+    })
+    for k, v in pairs(mt) do
+        print(k, v)
+    end
     ffi.metatype(class.name, mt)
     return class
 end

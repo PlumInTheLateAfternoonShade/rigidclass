@@ -4,15 +4,15 @@ local Fruit = rigidclass(
 {
     number = 'sweetness',
     boolean = 'edible',
-    table = 'subtable',
+    table = 'nsubtable',
 }, 'Fruit') -- 'Fruit' is the class' name
 
 function Fruit:initialize(sweetness, color, edible, subtable)
-    -- @double
-    self.sweetness = sweetness or 0 -- @double
-    --self.color = color or '' -- @string
-    self.edible = edible or false --    @boolean
-    self:setSubtable(subtable or { name = 'carol' })
+    self.sweetness = sweetness or 0
+    --self.color = color or ''
+    self.edible = edible or false
+    assert(not self:isSweet())
+    self.subtable = subtable or { name = 'carol' }
 end
 
 Fruit.static.sweetness_threshold = 5 -- class variable (also admits methods)
@@ -49,7 +49,7 @@ for k, v in pairs(lemon.subtable) do
            (k == 'num' and v == 5))
 end
 assert(#lemon.subtable == 0)
-table.insert(lemon:getSubtable(), 2)
+table.insert(lemon.subtable, 2)
 assert(#lemon.subtable == 1)
 assert(lemon['subtable'].num == 5)
 print('class members')
