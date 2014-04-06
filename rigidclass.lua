@@ -17,7 +17,7 @@ local luaToCTypes =
 {
     number = 'double',
     table = 'tableref',
-    string = 'unsupported', --TODO
+    string = 'uint8_t*', --TODO
     unsupported = 'unsupported',
     boolean = 'bool',
     bool = 'bool',
@@ -51,8 +51,11 @@ local function sortByDecreasingAlignment(a, b)
     return a[3] > b[3]
 end
 
+local function getUniqueIdentifier(originalIdentifier)
+    return originalIdentifier..tostring(math.random()):sub(3)
+end
+
 local indexer, newIndexer
-local uniqueId = 0
 
 local function setCTypes(types, mt, class)
     local tableMethodsCreated = false
@@ -67,8 +70,7 @@ local function setCTypes(types, mt, class)
                 error('Lua type "'..v..
                 '" is not supported by rigidclass.')
             elseif cType == 'tableref' then
-                uniqueId = uniqueId + 1
-                adjK = k..uniqueId
+                adjK = getUniqueIdentifier(k)
                 indexer[k] = function(tbl, key)
                     return idToTable[tbl[adjK]]
                 end
@@ -76,6 +78,14 @@ local function setCTypes(types, mt, class)
                     currentId = currentId + 1
                     idToTable[currentId] = val
                     tbl[adjK] = currentId
+                end
+            elseif cType == 'uint8_t*' then
+                adjK = getUniqueIdentifier(k)
+                indexer[k] = function(tbl, key)
+                    return ffi.string(tbl[adjK])
+                end
+                newIndexer[k] = function(tbl, key, val)
+                    ffi.copy(tbl[adjK], val)
                 end
             end
             

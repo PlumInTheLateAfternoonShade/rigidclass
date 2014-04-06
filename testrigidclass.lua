@@ -3,13 +3,14 @@ local rigidclass = require 'rigidclass'
 local Fruit = rigidclass(
 {
     number = 'sweetness',
+    string = 'color',
     boolean = 'edible',
     table = 'subtable',
 }, 'Fruit') -- 'Fruit' is the class' name
 
 function Fruit:initialize(sweetness, color, edible, subtable)
     self.sweetness = sweetness or 0
-    --self.color = color or ''
+    self.color = color or ''
     self.edible = edible or false
     assert(not self:isSweet())
     self.subtable = subtable or { name = 'carol' }
